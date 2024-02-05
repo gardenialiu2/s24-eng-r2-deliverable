@@ -11,14 +11,20 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/use-toast";
+import { createBrowserSupabaseClient } from "@/lib/client-utils";
 import { type Database } from "@/lib/schema";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useState, type BaseSyntheticEvent, type MouseEvent } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+
 type Species = Database["public"]["Tables"]["species"]["Row"];
+
 // Define kingdom enum for use in Zod schema and displaying dropdown options in the form
 const kingdoms = z.enum(["Animalia", "Plantae", "Fungi", "Protista", "Archaea", "Bacteria"]);
+
 // Use Zod to define the shape + requirements of a Species entry; used in form validation
 const speciesSchema = z.object({
   scientific_name: z
@@ -49,7 +55,8 @@ const speciesSchema = z.object({
 type FormData = z.infer<typeof speciesSchema>;
 
 // Define the form and its submission handler
-export default function SpeciesDetailsDialog({ species }: { species: Species }) {
+export default function SpeciesDetailsDialog({ species, currentUser }: { species: Species; currentUser: string }) {
+  const router = useRouter();
   // Define the state for the editing mode
   const [isEditing, setisEditing] = useState(false);
 
@@ -61,6 +68,7 @@ export default function SpeciesDetailsDialog({ species }: { species: Species }) 
     image: species.image,
     description: species.description,
   };
+
   const form = useForm<FormData>({
     resolver: zodResolver(speciesSchema),
     defaultValues,
@@ -68,8 +76,29 @@ export default function SpeciesDetailsDialog({ species }: { species: Species }) 
   });
 
   // Define the form submission handler
-  const onSubmit = (input: FormData) => {
-    console.log(input);
+  const onSubmit = async (input: FormData) => {
+    const supabase = createBrowserSupabaseClient();
+
+    const { error } = await supabase.from("species").update(input).eq("id", species.id);
+
+    if (error) {
+      return toast({
+        title: "Something went wrong.",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+
+    setisEditing(false);
+
+    form.reset(input);
+
+    router.refresh();
+
+    return toast({
+      title: "Changes saved!",
+      description: "Saved your changes to " + input.scientific_name + ".",
+    });
   };
 
   // Define the startEditing functions
@@ -86,9 +115,11 @@ export default function SpeciesDetailsDialog({ species }: { species: Species }) 
     if (!window.confirm("Revert all unsaved changes?")) {
       return;
     }
+
     form.reset(defaultValues);
     setisEditing(false);
   };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -219,22 +250,24 @@ export default function SpeciesDetailsDialog({ species }: { species: Species }) 
                   );
                 }}
               />
-              <div className="flex">
-                {isEditing ? (
-                  <>
-                    <Button type="submit" className="ml-1 mr-1 flex-auto">
-                      Confirm
+              {species.author === currentUser && (
+                <div className="flex">
+                  {isEditing ? (
+                    <>
+                      <Button type="submit" className="ml-1 mr-1 flex-auto">
+                        Confirm
+                      </Button>
+                      <Button onClick={handleCancel} type="button" className="ml-1 mr-1 flex-auto" variant="secondary">
+                        Cancel
+                      </Button>
+                    </>
+                  ) : (
+                    <Button onClick={startEditing} type="button" className="ml-1 mr-1 flex-auto">
+                      Edit Species
                     </Button>
-                    <Button onClick={handleCancel} type="button" className="ml-1 mr-1 flex-auto" variant="secondary">
-                      Cancel
-                    </Button>
-                  </>
-                ) : (
-                  <Button onClick={startEditing} type="button" className="ml-1 mr-1 flex-auto">
-                    Edit Species
-                  </Button>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </div>
           </form>
         </Form>
