@@ -23,13 +23,13 @@ import { useState, type BaseSyntheticEvent } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-// We use zod (z) to define a schema for the "Add species" form.
-// zod handles validation of the input values with methods like .string(), .nullable(). It also processes the form inputs with .transform() before the inputs are sent to the database.
+// Define a schema for the "Add species" form using zod.
+// zod handles validation of the input values and processes the form inputs before sending them to the database.
 
-// Define kingdom enum for use in Zod schema and displaying dropdown options in the form
+// Define an enum for the kingdom values to use in the Zod schema and to display dropdown options in the form.
 const kingdoms = z.enum(["Animalia", "Plantae", "Fungi", "Protista", "Archaea", "Bacteria"]);
 
-// Use Zod to define the shape + requirements of a Species entry; used in form validation
+// Define the shape and requirements of a Species entry using Zod for form validation.
 const speciesSchema = z.object({
   scientific_name: z
     .string()
@@ -59,12 +59,8 @@ const speciesSchema = z.object({
 type FormData = z.infer<typeof speciesSchema>;
 
 // Default values for the form fields.
-/* Because the react-hook-form (RHF) used here is a controlled form (not an uncontrolled form),
-fields that are nullable/not required should explicitly be set to `null` by default.
-Otherwise, they will be `undefined` by default, which will raise warnings because `undefined` conflicts with controlled components.
-All form fields should be set to non-undefined default values.
-Read more here: https://legacy.react-hook-form.com/api/useform/
-*/
+// Fields that are nullable/not required should explicitly be set to `null` by default to avoid conflicts with controlled components.
+// Read more here: https://legacy.react-hook-form.com/api/useform/
 const defaultValues: Partial<FormData> = {
   scientific_name: "",
   common_name: null,
@@ -77,18 +73,19 @@ const defaultValues: Partial<FormData> = {
 export default function AddSpeciesDialog({ userId }: { userId: string }) {
   const router = useRouter();
 
-  // Control open/closed state of the dialog
+  // Control the open/closed state of the dialog.
   const [open, setOpen] = useState<boolean>(false);
 
-  // Instantiate form functionality with React Hook Form, passing in the Zod schema (for validation) and default values
+  // Instantiate form functionality with React Hook Form, passing in the Zod schema (for validation) and default values.
   const form = useForm<FormData>({
     resolver: zodResolver(speciesSchema),
     defaultValues,
     mode: "onChange",
   });
 
+  // Handle form submission.
   const onSubmit = async (input: FormData) => {
-    // The `input` prop contains data that has already been processed by zod. We can now use it in a supabase query
+    // The `input` prop contains data that has already been processed by Zod. Use it in a Supabase query.
     const supabase = createBrowserSupabaseClient();
     const { error } = await supabase.from("species").insert([
       {
@@ -102,7 +99,7 @@ export default function AddSpeciesDialog({ userId }: { userId: string }) {
       },
     ]);
 
-    // Catch and report errors from Supabase and exit the onSubmit function with an early 'return' if an error occurred.
+    // If there's an error, display a toast message and return early.
     if (error) {
       return toast({
         title: "Something went wrong.",
@@ -111,18 +108,16 @@ export default function AddSpeciesDialog({ userId }: { userId: string }) {
       });
     }
 
-    // Because Supabase errors were caught above, the remainder of the function will only execute upon a successful edit
-
     // Reset form values to the default (empty) values.
-    // Practically, this line can be removed because router.refresh() also resets the form. However, we left it as a reminder that you should generally consider form "cleanup" after an add/edit operation.
     form.reset(defaultValues);
 
+    // Close the dialog.
     setOpen(false);
 
-    // Refresh all server components in the current route. This helps display the newly created species because species are fetched in a server component, species/page.tsx.
-    // Refreshing that server component will display the new species from Supabase
+    // Refresh all server components in the current route to display the newly created species.
     router.refresh();
 
+    // Display a success message.
     return toast({
       title: "New species added!",
       description: "Successfully added " + input.scientific_name + ".",

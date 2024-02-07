@@ -250,6 +250,7 @@ export default function SpeciesDetailsDialog({ species, currentUser }: { species
                   );
                 }}
               />
+
               {species.author === currentUser && (
                 <div className="flex">
                   {isEditing ? (
